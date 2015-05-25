@@ -31,6 +31,7 @@ import org.jboss.arquillian.core.spi.ServiceLoader;
 import org.jboss.arquillian.test.api.ArquillianResource;
 import org.jboss.arquillian.test.spi.TestEnricher;
 import org.jboss.arquillian.test.spi.enricher.resource.ResourceProvider;
+import org.jboss.arquillian.test.spi.enricher.resource.ResourceProviderWrapper;
 
 /**
  * ArquillianTestEnricher
@@ -40,167 +41,176 @@ import org.jboss.arquillian.test.spi.enricher.resource.ResourceProvider;
  */
 public class ArquillianResourceTestEnricher implements TestEnricher
 {
-   @Inject
-   private Instance<ServiceLoader> loader;
+    private static final Annotation[] ANNOTATION_ARRAY = new Annotation[0];
 
-   /* (non-Javadoc)
-    * @see org.jboss.arquillian.spi.TestEnricher#enrich(java.lang.Object)
-    */
-   public void enrich(Object testCase)
-   {
-      for(Field field : SecurityActions.getFieldsWithAnnotation(testCase.getClass(), ArquillianResource.class))
-      {
-         Object value = null;
-         try
-         {
-             List<Annotation> qualifiers = filterAnnotations(Arrays.asList(field.getAnnotations()));
-            // null value will throw exception in lookup
+    @Inject
+    private Instance<ServiceLoader> loader;
 
-            checkPresentScopeInjection(qualifiers, ResourceProvider.ClassInjection.class);
-            checkPresentScopeInjection(qualifiers, ResourceProvider.MethodInjection.class);
-
-            ResourceProvider.ClassInjection classInjectedResource = new ResourceProvider.ClassInjection()
+    /* (non-Javadoc)
+     * @see org.jboss.arquillian.spi.TestEnricher#enrich(java.lang.Object)
+     */
+    public void enrich(Object testCase)
+    {
+        for(Field field : SecurityActions.getFieldsWithAnnotation(testCase.getClass(), ArquillianResource.class))
+        {
+            Object value = null;
+            try
             {
-                @Override
-                public Class<? extends Annotation> annotationType()
+                List<Annotation> qualifiers = filterAnnotations(Arrays.asList(field.getAnnotations()));
+                // null value will throw exception in lookup
+
+                checkPresentScopeInjection(qualifiers, ResourceProvider.ClassInjection.class);
+                checkPresentScopeInjection(qualifiers, ResourceProvider.MethodInjection.class);
+
+                ResourceProvider.ClassInjection classInjectedResource = new ResourceProvider.ClassInjection()
                 {
-                    return ResourceProvider.ClassInjection.class;
-                }
-            };
+                    @Override
+                    public Class<? extends Annotation> annotationType()
+                    {
+                        return ResourceProvider.ClassInjection.class;
+                    }
+                };
 
-            qualifiers.add(classInjectedResource);
+                qualifiers.add(classInjectedResource);
 
-            value = lookup(field.getType(), field.getAnnotation(ArquillianResource.class), qualifiers);
-         }
-         catch (Exception e)
-         {
-            throw new RuntimeException("Could not lookup value for field " + field, e);
-         }
-         try
-         {
-            if(!field.isAccessible())
-            {
-               field.setAccessible(true);
-            }
-               field.set(testCase, value);
+                value = lookup(field.getType(), field.getAnnotation(ArquillianResource.class), qualifiers);
             }
             catch (Exception e)
             {
-               throw new RuntimeException("Could not set value on field " + field + " using " + value);
+                throw new RuntimeException("Could not lookup value for field " + field, e);
             }
-      }
-   }
-
-   /* (non-Javadoc)
-    * @see org.jboss.arquillian.spi.TestEnricher#resolve(java.lang.reflect.Method)
-    */
-   public Object[] resolve(Method method)
-   {
-      Object[] values = new Object[method.getParameterTypes().length];
-      Class<?>[] parameterTypes = method.getParameterTypes();
-      for(int i = 0; i < parameterTypes.length; i++)
-      {
-         ArquillianResource resource = getResourceAnnotation(method.getParameterAnnotations()[i]);
-         if(resource != null)
-         {
-            List<Annotation> qualifiers = filterAnnotations(Arrays.asList(method.getParameterAnnotations()[i]));
-
-            checkPresentScopeInjection(qualifiers, ResourceProvider.ClassInjection.class);
-            checkPresentScopeInjection(qualifiers, ResourceProvider.MethodInjection.class);
-
-            ResourceProvider.MethodInjection methodInjectedResource = new ResourceProvider.MethodInjection()
+            try
             {
-                @Override
-                public Class<? extends Annotation> annotationType()
+                if(!field.isAccessible())
                 {
-                    return ResourceProvider.MethodInjection.class;
+                    field.setAccessible(true);
                 }
-            };
-
-            qualifiers.add(methodInjectedResource);
-
-            values[i] = lookup(method.getParameterTypes()[i], resource, qualifiers);
-         }
-      }
-      return values;
-   }
-
-   /**
-    *
-    * @param type
-    * @param resource
-    * @return
-    * @throws IllegalArgumentException If no ResourceProvider found for Type
-    * @throws RuntimeException If ResourceProvider return null
-    */
-   private Object lookup(Class<?> type, ArquillianResource resource, List<Annotation> qualifiers)
-   {
-      Collection<ResourceProvider> resourceProviders = loader.get().all(ResourceProvider.class);
-      for(ResourceProvider resourceProvider: resourceProviders)
-      {
-         if(resourceProvider.canProvide(type))
-         {
-            Object value = resourceProvider.lookup(resource, qualifiers.toArray(new Annotation[0]));
-            if(value == null)
-            {
-               throw new RuntimeException("Provider for type " + type + " returned a null value: " + resourceProvider);
+                field.set(testCase, value);
             }
-            return value;
-         }
-      }
-      throw new IllegalArgumentException("No ResourceProvider found for type: " + type);
-   }
+            catch (Exception e)
+            {
+                throw new RuntimeException("Could not set value on field " + field + " using " + value);
+            }
+        }
+    }
 
-   private ArquillianResource getResourceAnnotation(Annotation[] annotations)
-   {
-      for(Annotation annotation : annotations)
-      {
-         if(annotation.annotationType() == ArquillianResource.class)
-         {
-            return (ArquillianResource)annotation;
-         }
-      }
-      return null;
-   }
+    /* (non-Javadoc)
+     * @see org.jboss.arquillian.spi.TestEnricher#resolve(java.lang.reflect.Method)
+     */
+    public Object[] resolve(Method method)
+    {
+        Object[] values = new Object[method.getParameterTypes().length];
+        Class<?>[] parameterTypes = method.getParameterTypes();
+        for(int i = 0; i < parameterTypes.length; i++)
+        {
+            ArquillianResource resource = getResourceAnnotation(method.getParameterAnnotations()[i]);
+            if(resource != null)
+            {
+                List<Annotation> qualifiers = filterAnnotations(Arrays.asList(method.getParameterAnnotations()[i]));
 
-   /**
-    * @param annotations
-    * @return
-    */
-   private List<Annotation> filterAnnotations(List<Annotation> annotations)
-   {
-      List<Annotation> filtered = new ArrayList<Annotation>();
+                checkPresentScopeInjection(qualifiers, ResourceProvider.ClassInjection.class);
+                checkPresentScopeInjection(qualifiers, ResourceProvider.MethodInjection.class);
 
-      if(annotations == null)
-      {
-         return filtered;
-      }
+                ResourceProvider.MethodInjection methodInjectedResource = new ResourceProvider.MethodInjection()
+                {
+                    @Override
+                    public Class<? extends Annotation> annotationType()
+                    {
+                        return ResourceProvider.MethodInjection.class;
+                    }
+                };
 
-      for(Annotation annotation : annotations)
-      {
-         if(annotation.annotationType() != ArquillianResource.class)
-         {
-            filtered.add(annotation);
-         }
-      }
-      return filtered;
-   }
+                qualifiers.add(methodInjectedResource);
 
-   private void checkPresentScopeInjection(List<Annotation> qualifiers, Class<? extends Annotation> scope)
-   {
-       boolean present = false;
+                values[i] = lookup(method.getParameterTypes()[i], resource, qualifiers);
+            }
+        }
+        return values;
+    }
 
-       for (Annotation qualifier : qualifiers) {
-           if (scope.isAssignableFrom(qualifier.annotationType())) {
-               present = true;
-               break;
-           }
-       }
+    /**
+     *
+     * @param type
+     * @param resource
+     * @return
+     * @throws IllegalArgumentException If no ResourceProvider found for Type
+     * @throws RuntimeException If ResourceProvider return null
+     */
+    private Object lookup(Class<?> type, ArquillianResource resource, List<Annotation> qualifiers)
+    {
+        Collection<ResourceProvider> resourceProviders = loader.get().all(ResourceProvider.class);
+        Collection<ResourceProviderWrapper> resourceProviderWrappers = loader.get().all(ResourceProviderWrapper.class);
+        for(ResourceProvider resourceProvider: resourceProviders)
+        {
+            if(resourceProvider.canProvide(type))
+            {
+                Annotation[] qualifiersArray = qualifiers.toArray(ANNOTATION_ARRAY);
+                Object value = resourceProvider.lookup(resource, qualifiersArray);
+                if(value == null)
+                {
+                    throw new RuntimeException("Provider for type " + type + " returned a null value: " + resourceProvider);
+                }
+                for(ResourceProviderWrapper resourceProviderWrapper : resourceProviderWrappers) {
+                    if(resourceProviderWrapper.canWrap(type, qualifiersArray)) {
+                        value = resourceProviderWrapper.wrap(value, resource, qualifiersArray);
+                    }
+                }
+                return value;
+            }
+        }
+        throw new IllegalArgumentException("No ResourceProvider found for type: " + type);
+    }
 
-       if (present) {
-           throw new IllegalStateException(String.format("You have put %s or its subclass on ArquillianResource injection point "
-               + "with qualifiers '%s'. This annotation is not supposed to be used in your test case.",
-               scope.getName(), qualifiers.toString()));
-       }
-   }
+    private ArquillianResource getResourceAnnotation(Annotation[] annotations)
+    {
+        for(Annotation annotation : annotations)
+        {
+            if(annotation.annotationType() == ArquillianResource.class)
+            {
+                return (ArquillianResource)annotation;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * @param annotations
+     * @return
+     */
+    private List<Annotation> filterAnnotations(List<Annotation> annotations)
+    {
+        List<Annotation> filtered = new ArrayList<Annotation>();
+
+        if(annotations == null)
+        {
+            return filtered;
+        }
+
+        for(Annotation annotation : annotations)
+        {
+            if(annotation.annotationType() != ArquillianResource.class)
+            {
+                filtered.add(annotation);
+            }
+        }
+        return filtered;
+    }
+
+    private void checkPresentScopeInjection(List<Annotation> qualifiers, Class<? extends Annotation> scope)
+    {
+        boolean present = false;
+
+        for (Annotation qualifier : qualifiers) {
+            if (scope.isAssignableFrom(qualifier.annotationType())) {
+                present = true;
+                break;
+            }
+        }
+
+        if (present) {
+            throw new IllegalStateException(String.format("You have put %s or its subclass on ArquillianResource injection point "
+                + "with qualifiers '%s'. This annotation is not supposed to be used in your test case.",
+                scope.getName(), qualifiers.toString()));
+        }
+    }
 }
