@@ -46,7 +46,9 @@ public class URLResourceProvider extends OperatesOnDeploymentAwareProvider
    @Override
    public boolean canProvide(Class<?> type)
    {
-      return URL.class.isAssignableFrom(type);
+      //can provide an URL resource only if the context has been properly set up
+      ProtocolMetaData metaData = protocolMetadata.get();
+      return URL.class.isAssignableFrom(type) && metaData != null && metaData.hasContext(HTTPContext.class);
    }
 
    @Override

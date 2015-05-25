@@ -143,7 +143,7 @@ public class URLResourceProviderTestCase extends OperatesOnDeploymentAwareProvid
       Assert.assertEquals("http://TEST-A-X:8080/test-X/", test.url.toExternalForm());
    }
 
-   @Test(expected = IllegalStateException.class)
+   @Test(expected = IllegalArgumentException.class)
    public void shouldThrowExceptionOnMissingContainerRegistry() throws Exception
    {
       execute(
@@ -155,7 +155,7 @@ public class URLResourceProviderTestCase extends OperatesOnDeploymentAwareProvid
             new ProtocolMetaData());
    }
 
-   @Test(expected = IllegalStateException.class)
+   @Test(expected = IllegalArgumentException.class)
    public void shouldThrowExceptionOnMissingDeploymentScenario() throws Exception
    {
       execute(
